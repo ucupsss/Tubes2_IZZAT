@@ -1,4 +1,4 @@
-package dom
+package graph
 
 const defaultLCALog = 20
 

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
-	"tubes2_izzat/dom"
+	"tubes2_izzat/src/backend/graph"
 	"tubes2_izzat/src/backend/scraper"
 	"tubes2_izzat/src/backend/selector"
 )
@@ -14,23 +14,25 @@ func main() {
 	fmt.Println(strings.Repeat("=", 70))
 
 	// ========== TEST 1: SIMPLE SELECTORS ==========
-	fmt.Println("\n--- TEST 1: Simple Selectors ---\n")
+	fmt.Println()
+	fmt.Println("--- TEST 1: Simple Selectors ---")
+	fmt.Println()
 
 	// Test Tag Selector
 	fmt.Println("1.1: Tag Selector (div)")
-	divNode := dom.NewNode("div", map[string]string{})
+	divNode := graph.NewNode("div", map[string]string{})
 	tagMatcher := selector.ParseSelector("div")
 	testResult("div selector on <div>", tagMatcher.IsMatch(divNode), true)
 
 	// Test Class Selector
 	fmt.Println("\n1.2: Class Selector (.container)")
-	node1 := dom.NewNode("div", map[string]string{"class": "container"})
+	node1 := graph.NewNode("div", map[string]string{"class": "container"})
 	classMatcher := selector.ParseSelector(".container")
 	testResult(".container selector", classMatcher.IsMatch(node1), true)
 
 	// Test ID Selector
 	fmt.Println("\n1.3: ID Selector (#main)")
-	node2 := dom.NewNode("div", map[string]string{"id": "main"})
+	node2 := graph.NewNode("div", map[string]string{"id": "main"})
 	idMatcher := selector.ParseSelector("#main")
 	testResult("#main selector", idMatcher.IsMatch(node2), true)
 
@@ -40,11 +42,13 @@ func main() {
 	testResult("* selector on any node", universalMatcher.IsMatch(node1), true)
 
 	// ========== TEST 2: TAG + CLASS ==========
-	fmt.Println("\n--- TEST 2: Tag + Class Selector (p.intro) ---\n")
+	fmt.Println()
+	fmt.Println("--- TEST 2: Tag + Class Selector (p.intro) ---")
+	fmt.Println()
 
-	p1 := dom.NewNode("p", map[string]string{"class": "intro"})
-	p2 := dom.NewNode("p", map[string]string{"class": "outro"})
-	div1 := dom.NewNode("div", map[string]string{"class": "intro"})
+	p1 := graph.NewNode("p", map[string]string{"class": "intro"})
+	p2 := graph.NewNode("p", map[string]string{"class": "outro"})
+	div1 := graph.NewNode("div", map[string]string{"class": "intro"})
 
 	tagClassMatcher := selector.ParseSelector("p.intro")
 	testResult("p.intro on <p class='intro'>", tagClassMatcher.IsMatch(p1), true)
@@ -52,11 +56,13 @@ func main() {
 	testResult("p.intro on <div class='intro'>", tagClassMatcher.IsMatch(div1), false)
 
 	// ========== TEST 3: MULTICLASS ==========
-	fmt.Println("\n--- TEST 3: Multiclass Selector (.btn.primary) ---\n")
+	fmt.Println()
+	fmt.Println("--- TEST 3: Multiclass Selector (.btn.primary) ---")
+	fmt.Println()
 
-	btn1 := dom.NewNode("button", map[string]string{"class": "btn primary"})
-	btn2 := dom.NewNode("button", map[string]string{"class": "btn"})
-	btn3 := dom.NewNode("button", map[string]string{"class": "btn primary secondary"})
+	btn1 := graph.NewNode("button", map[string]string{"class": "btn primary"})
+	btn2 := graph.NewNode("button", map[string]string{"class": "btn"})
+	btn3 := graph.NewNode("button", map[string]string{"class": "btn primary secondary"})
 
 	multiclassMatcher := selector.ParseSelector(".btn.primary")
 	testResult(".btn.primary on <button class='btn primary'>", multiclassMatcher.IsMatch(btn1), true)
@@ -64,11 +70,13 @@ func main() {
 	testResult(".btn.primary on <button class='btn primary secondary'>", multiclassMatcher.IsMatch(btn3), true)
 
 	// ========== TEST 4: ATTRIBUTE SELECTOR ==========
-	fmt.Println("\n--- TEST 4: Attribute Selector (input[type=text]) ---\n")
+	fmt.Println()
+	fmt.Println("--- TEST 4: Attribute Selector (input[type=text]) ---")
+	fmt.Println()
 
-	input1 := dom.NewNode("input", map[string]string{"type": "text"})
-	input2 := dom.NewNode("input", map[string]string{"type": "password"})
-	input3 := dom.NewNode("input", map[string]string{"type": "text", "name": "username"})
+	input1 := graph.NewNode("input", map[string]string{"type": "text"})
+	input2 := graph.NewNode("input", map[string]string{"type": "password"})
+	input3 := graph.NewNode("input", map[string]string{"type": "text", "name": "username"})
 
 	attrMatcher := selector.ParseSelector("input[type=text]")
 	testResult("input[type=text] on <input type='text'>", attrMatcher.IsMatch(input1), true)
@@ -81,7 +89,9 @@ func main() {
 	testResult("[type=text] on <input type='text'>", attrMatcher2.IsMatch(input1), true)
 
 	// ========== TEST 5: COMBINATORS ==========
-	fmt.Println("\n--- TEST 5: Combinator Selectors ---\n")
+	fmt.Println()
+	fmt.Println("--- TEST 5: Combinator Selectors ---")
+	fmt.Println()
 
 	// Build DOM structure:
 	// <div id="container">
@@ -93,12 +103,12 @@ func main() {
 	//   <p>Paragraph</p>
 	// </div>
 
-	container := dom.NewNode("div", map[string]string{"id": "container"})
-	ulList := dom.NewNode("ul", map[string]string{"class": "list"})
-	li1 := dom.NewNode("li", map[string]string{})
-	li2 := dom.NewNode("li", map[string]string{"class": "active"})
-	li3 := dom.NewNode("li", map[string]string{})
-	pTag := dom.NewNode("p", map[string]string{})
+	container := graph.NewNode("div", map[string]string{"id": "container"})
+	ulList := graph.NewNode("ul", map[string]string{"class": "list"})
+	li1 := graph.NewNode("li", map[string]string{})
+	li2 := graph.NewNode("li", map[string]string{"class": "active"})
+	li3 := graph.NewNode("li", map[string]string{})
+	pTag := graph.NewNode("p", map[string]string{})
 
 	container.AddChild(ulList)
 	container.AddChild(pTag)
@@ -153,13 +163,15 @@ func main() {
 	fmt.Println("TESTING SCRAPER")
 	fmt.Println(strings.Repeat("=", 70))
 
-	fmt.Println("\n--- TEST 6: Scraper FetchHTML ---\n")
-	
+	fmt.Println()
+	fmt.Println("--- TEST 6: Scraper FetchHTML ---")
+	fmt.Println()
+
 	// Test on a known fast website
 	url := "http://example.com"
 	fmt.Printf("Fetching HTML from: %s\n", url)
 	htmlContent, err := scraper.FetchHTML(url)
-	
+
 	if err != nil {
 		fmt.Printf("  Fetch failed: %v\n", err)
 	} else {

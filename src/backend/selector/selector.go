@@ -2,7 +2,7 @@ package selector
 
 import (
 	"strings"
-	"tubes2_izzat/dom"
+	"tubes2_izzat/src/backend/graph"
 )
 
 // TagMatcher implements SelectorMatcher for HTML tag matching.
@@ -11,7 +11,7 @@ type TagMatcher struct {
 }
 
 // IsMatch checks if a node matches the tag criteria.
-func (tm *TagMatcher) IsMatch(node *dom.Node) bool {
+func (tm *TagMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
 	}
@@ -24,11 +24,11 @@ type ClassMatcher struct {
 }
 
 // IsMatch checks if a node matches the class criteria.
-func (cm *ClassMatcher) IsMatch(node *dom.Node) bool {
+func (cm *ClassMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
 	}
-	
+
 	classAttr, exists := node.Attributes["class"]
 	if !exists {
 		return false
@@ -49,11 +49,11 @@ type IDMatcher struct {
 }
 
 // IsMatch checks if a node matches the id criteria.
-func (im *IDMatcher) IsMatch(node *dom.Node) bool {
+func (im *IDMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
 	}
-	
+
 	idAttr, exists := node.Attributes["id"]
 	if !exists {
 		return false
@@ -66,19 +66,19 @@ func (im *IDMatcher) IsMatch(node *dom.Node) bool {
 type UniversalMatcher struct{}
 
 // IsMatch checks if a node matches (always true for universal selector).
-func (um *UniversalMatcher) IsMatch(node *dom.Node) bool {
+func (um *UniversalMatcher) IsMatch(node *graph.Node) bool {
 	return node != nil
 }
 
 // AttributeMatcher implements SelectorMatcher for attribute matching (e.g., a[href=example.com]).
 type AttributeMatcher struct {
 	tagName   string
-	attribute string 
-	value     string 
+	attribute string
+	value     string
 }
 
 // IsMatch checks if a node matches the attribute criteria.
-func (am *AttributeMatcher) IsMatch(node *dom.Node) bool {
+func (am *AttributeMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
 	}
@@ -102,7 +102,7 @@ type TagClassMatcher struct {
 }
 
 // IsMatch checks if a node matches the tag and class criteria.
-func (tcm *TagClassMatcher) IsMatch(node *dom.Node) bool {
+func (tcm *TagClassMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
 	}
@@ -132,7 +132,7 @@ type MulticlassMatcher struct {
 }
 
 // IsMatch checks if a node has all the required classes.
-func (mcm *MulticlassMatcher) IsMatch(node *dom.Node) bool {
+func (mcm *MulticlassMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil || len(mcm.classNames) == 0 {
 		return false
 	}
@@ -164,13 +164,13 @@ func (mcm *MulticlassMatcher) IsMatch(node *dom.Node) bool {
 // CombinatorMatcher implements SelectorMatcher for CSS combinators.
 // Combinators: > (child), space (descendant), + (adjacent sibling), ~ (general sibling)
 type CombinatorMatcher struct {
-	left       dom.SelectorMatcher
-	right      dom.SelectorMatcher
+	left       graph.SelectorMatcher
+	right      graph.SelectorMatcher
 	combinator string // ">", " ", "+", "~"
 }
 
 // IsMatch checks if a node matches the combinator criteria.
-func (cm *CombinatorMatcher) IsMatch(node *dom.Node) bool {
+func (cm *CombinatorMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil || cm.right == nil || cm.left == nil {
 		return false
 	}
@@ -237,11 +237,11 @@ func (cm *CombinatorMatcher) IsMatch(node *dom.Node) bool {
 // - tag[attr=value] (attribute selector)
 // - a[href=value] (tag+attribute)
 // Supported combinators: > (child), space (descendant), + (adjacent sibling), ~ (general sibling)
-func ParseSelector(input string) dom.SelectorMatcher {
+func ParseSelector(input string) graph.SelectorMatcher {
 	input = strings.TrimSpace(input)
 
 	if input == "" {
-		return nil 
+		return nil
 	}
 
 	// Check for combinators (but not within brackets)
@@ -249,15 +249,15 @@ func ParseSelector(input string) dom.SelectorMatcher {
 	if combIdx != -1 {
 		leftStr := input[:combIdx]
 		rightStr := input[combIdx+len(combType):]
-		
+
 		left := ParseSelector(strings.TrimSpace(leftStr))
 		right := ParseSelector(strings.TrimSpace(rightStr))
-		
+
 		comb := combType
 		if comb != " " {
 			comb = strings.TrimSpace(combType)
 		}
-		
+
 		if left != nil && right != nil {
 			return &CombinatorMatcher{
 				left:       left,
@@ -302,7 +302,7 @@ func ParseSelector(input string) dom.SelectorMatcher {
 }
 
 // parseAttributeSelector parses attribute selectors like a[href=value] or [attr=value]
-func parseAttributeSelector(input string) dom.SelectorMatcher {
+func parseAttributeSelector(input string) graph.SelectorMatcher {
 	bracketIdx := strings.Index(input, "[")
 	tagName := ""
 
