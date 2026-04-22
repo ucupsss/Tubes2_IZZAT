@@ -2,8 +2,6 @@ package dom
 
 import "time"
 
-// SearchBFS performs a breadth-first traversal from root and collects nodes
-// that match the provided selector. If limit is 0, all matches are returned.
 func SearchBFS(root *Node, matcher SelectorMatcher, limit int) ([]*Node, int, []*Node, time.Duration) {
 	start := time.Now()
 	if root == nil || matcher == nil || limit < 0 {
@@ -38,8 +36,6 @@ func SearchBFS(root *Node, matcher SelectorMatcher, limit int) ([]*Node, int, []
 	return results, visitedCount, traversalLog, time.Since(start)
 }
 
-// SearchDFS performs an iterative depth-first traversal from root and collects
-// nodes that match the provided selector. If limit is 0, all matches are returned.
 func SearchDFS(root *Node, matcher SelectorMatcher, limit int) ([]*Node, int, []*Node, time.Duration) {
 	start := time.Now()
 	if root == nil || matcher == nil || limit < 0 {

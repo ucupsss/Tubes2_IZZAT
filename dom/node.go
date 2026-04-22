@@ -4,14 +4,11 @@ import "sync/atomic"
 
 var nextNodeID uint64
 
-// NodeMeta stores traversal and ancestor data that higher-level algorithms
-// can populate without changing the structural DOM representation.
 type NodeMeta struct {
 	Depth int
 	Up    []*Node
 }
 
-// Node represents a single HTML element in the DOM tree.
 type Node struct {
 	ID         uint64
 	TagName    string
@@ -21,7 +18,6 @@ type Node struct {
 	Meta       NodeMeta
 }
 
-// NewNode creates a DOM node with a unique ID and a defensive copy of attributes.
 func NewNode(tagName string, attributes map[string]string) *Node {
 	return &Node{
 		ID:         atomic.AddUint64(&nextNodeID, 1),
@@ -31,7 +27,6 @@ func NewNode(tagName string, attributes map[string]string) *Node {
 	}
 }
 
-// AddChild links a child to the node and updates the child's parent pointer.
 func (n *Node) AddChild(child *Node) {
 	if n == nil || child == nil {
 		return
@@ -41,7 +36,6 @@ func (n *Node) AddChild(child *Node) {
 	n.Children = append(n.Children, child)
 }
 
-// SetDepth stores the node depth for traversal and binary lifting preparation.
 func (n *Node) SetDepth(depth int) {
 	if n == nil {
 		return
@@ -50,7 +44,6 @@ func (n *Node) SetDepth(depth int) {
 	n.Meta.Depth = depth
 }
 
-// InitUpTable allocates the binary lifting table with the requested size.
 func (n *Node) InitUpTable(levels int) {
 	if n == nil {
 		return
