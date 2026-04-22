@@ -57,6 +57,64 @@ func (n *Node) InitUpTable(levels int) {
 	n.Meta.Up = make([]*Node, levels)
 }
 
+// MaxDepth returns the deepest level in the tree, with root depth counted as 0.
+func MaxDepth(root *Node) int {
+	if root == nil {
+		return 0
+	}
+
+	maxDepth := 0
+	stack := []nodeDepth{{node: root, depth: 0}}
+
+	for len(stack) > 0 {
+		last := len(stack) - 1
+		current := stack[last]
+		stack = stack[:last]
+
+		if current.depth > maxDepth {
+			maxDepth = current.depth
+		}
+
+		for _, child := range current.node.Children {
+			if child != nil {
+				stack = append(stack, nodeDepth{node: child, depth: current.depth + 1})
+			}
+		}
+	}
+
+	return maxDepth
+}
+
+// CountNodes returns the number of non-nil nodes in the tree.
+func CountNodes(root *Node) int {
+	if root == nil {
+		return 0
+	}
+
+	count := 0
+	stack := []*Node{root}
+
+	for len(stack) > 0 {
+		last := len(stack) - 1
+		current := stack[last]
+		stack = stack[:last]
+
+		if current == nil {
+			continue
+		}
+
+		count++
+		stack = append(stack, current.Children...)
+	}
+
+	return count
+}
+
+type nodeDepth struct {
+	node  *Node
+	depth int
+}
+
 func cloneAttributes(attributes map[string]string) map[string]string {
 	if len(attributes) == 0 {
 		return make(map[string]string)
