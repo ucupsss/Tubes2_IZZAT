@@ -100,6 +100,7 @@ a {
 
 .form-group input[type="text"],
 .form-group input[type="url"],
+.form-group input[type="number"],
 .form-group select,
 .form-group textarea {
   width: 100%;
@@ -108,6 +109,11 @@ a {
   border-radius: 6px;
   font-size: 14px;
   font-family: inherit;
+}
+
+.number-input {
+  margin-top: 8px;
+  max-width: 120px;
 }
 
 .form-group textarea {
@@ -175,9 +181,81 @@ button.primary:disabled {
   overflow: auto;
 }
 
+.tree-row {
+  display: flex;
+  align-items: center;
+  min-width: max-content;
+  min-height: 24px;
+  position: relative;
+}
+
 .tree-node {
   padding: 1px 0;
   transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.attribute-node {
+  color: #92400e;
+  display: inline-block;
+  margin-left: 20px;
+  max-width: 520px;
+  overflow-wrap: anywhere;
+  padding: 1px 0;
+  position: relative;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.attribute-node::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  width: 20px;
+  height: 2px;
+  background: #d1d5db;
+  transform: translateY(-50%);
+}
+
+.attribute-node.is-hidden {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.attribute-node.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.text-row {
+  color: #b45309;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0 0 4px;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.text-connector {
+  width: 2px;
+  height: 12px;
+  margin-left: 8px;
+  background: #d1d5db;
+}
+
+.text-node {
+  padding: 1px 0;
+  overflow-wrap: anywhere;
+  max-width: 520px;
+}
+
+.text-row.is-hidden {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.text-row.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .tree-node.is-hidden {
@@ -223,6 +301,25 @@ button.primary:disabled {
   border-radius: 6px;
   padding: 12px;
   word-break: break-word;
+  max-height: 180px;
+  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.log-entry {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 2px 6px;
+  color: #374151;
+  background: #fff;
+}
+
+.log-entry.matched {
+  border-color: #fecaca;
+  color: #dc2626;
+  background: #fff1f2;
 }
 
 .error {

@@ -13,6 +13,7 @@ type Node struct {
 	ID         uint64
 	TagName    string
 	Attributes map[string]string
+	Texts      []string
 	Parent     *Node
 	Children   []*Node
 	Meta       NodeMeta
@@ -23,6 +24,7 @@ func NewNode(tagName string, attributes map[string]string) *Node {
 		ID:         atomic.AddUint64(&nextNodeID, 1),
 		TagName:    tagName,
 		Attributes: cloneAttributes(attributes),
+		Texts:      make([]string, 0),
 		Children:   make([]*Node, 0),
 	}
 }
@@ -34,6 +36,16 @@ func (n *Node) AddChild(child *Node) {
 
 	child.Parent = n
 	n.Children = append(n.Children, child)
+}
+
+func (n *Node) AddText(text string) {
+	if n == nil {
+		return
+	}
+
+	if text != "" {
+		n.Texts = append(n.Texts, text)
+	}
 }
 
 func (n *Node) SetDepth(depth int) {

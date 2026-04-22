@@ -1,199 +1,291 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+	"strconv"
 	"strings"
+	"time"
 	"tubes2_izzat/src/backend/graph"
+	"tubes2_izzat/src/backend/parser"
 	"tubes2_izzat/src/backend/scraper"
 	"tubes2_izzat/src/backend/selector"
 )
 
-func main() {
-	fmt.Println(strings.Repeat("=", 70))
-	fmt.Println("TESTING SELECTOR MATCHER")
-	fmt.Println(strings.Repeat("=", 70))
+const defaultPort = "5175"
 
-	// ========== TEST 1: SIMPLE SELECTORS ==========
-	fmt.Println()
-	fmt.Println("--- TEST 1: Simple Selectors ---")
-	fmt.Println()
-
-	// Test Tag Selector
-	fmt.Println("1.1: Tag Selector (div)")
-	divNode := graph.NewNode("div", map[string]string{})
-	tagMatcher := selector.ParseSelector("div")
-	testResult("div selector on <div>", tagMatcher.IsMatch(divNode), true)
-
-	// Test Class Selector
-	fmt.Println("\n1.2: Class Selector (.container)")
-	node1 := graph.NewNode("div", map[string]string{"class": "container"})
-	classMatcher := selector.ParseSelector(".container")
-	testResult(".container selector", classMatcher.IsMatch(node1), true)
-
-	// Test ID Selector
-	fmt.Println("\n1.3: ID Selector (#main)")
-	node2 := graph.NewNode("div", map[string]string{"id": "main"})
-	idMatcher := selector.ParseSelector("#main")
-	testResult("#main selector", idMatcher.IsMatch(node2), true)
-
-	// Test Universal Selector
-	fmt.Println("\n1.4: Universal Selector (*)")
-	universalMatcher := selector.ParseSelector("*")
-	testResult("* selector on any node", universalMatcher.IsMatch(node1), true)
-
-	// ========== TEST 2: TAG + CLASS ==========
-	fmt.Println()
-	fmt.Println("--- TEST 2: Tag + Class Selector (p.intro) ---")
-	fmt.Println()
-
-	p1 := graph.NewNode("p", map[string]string{"class": "intro"})
-	p2 := graph.NewNode("p", map[string]string{"class": "outro"})
-	div1 := graph.NewNode("div", map[string]string{"class": "intro"})
-
-	tagClassMatcher := selector.ParseSelector("p.intro")
-	testResult("p.intro on <p class='intro'>", tagClassMatcher.IsMatch(p1), true)
-	testResult("p.intro on <p class='outro'>", tagClassMatcher.IsMatch(p2), false)
-	testResult("p.intro on <div class='intro'>", tagClassMatcher.IsMatch(div1), false)
-
-	// ========== TEST 3: MULTICLASS ==========
-	fmt.Println()
-	fmt.Println("--- TEST 3: Multiclass Selector (.btn.primary) ---")
-	fmt.Println()
-
-	btn1 := graph.NewNode("button", map[string]string{"class": "btn primary"})
-	btn2 := graph.NewNode("button", map[string]string{"class": "btn"})
-	btn3 := graph.NewNode("button", map[string]string{"class": "btn primary secondary"})
-
-	multiclassMatcher := selector.ParseSelector(".btn.primary")
-	testResult(".btn.primary on <button class='btn primary'>", multiclassMatcher.IsMatch(btn1), true)
-	testResult(".btn.primary on <button class='btn'>", multiclassMatcher.IsMatch(btn2), false)
-	testResult(".btn.primary on <button class='btn primary secondary'>", multiclassMatcher.IsMatch(btn3), true)
-
-	// ========== TEST 4: ATTRIBUTE SELECTOR ==========
-	fmt.Println()
-	fmt.Println("--- TEST 4: Attribute Selector (input[type=text]) ---")
-	fmt.Println()
-
-	input1 := graph.NewNode("input", map[string]string{"type": "text"})
-	input2 := graph.NewNode("input", map[string]string{"type": "password"})
-	input3 := graph.NewNode("input", map[string]string{"type": "text", "name": "username"})
-
-	attrMatcher := selector.ParseSelector("input[type=text]")
-	testResult("input[type=text] on <input type='text'>", attrMatcher.IsMatch(input1), true)
-	testResult("input[type=text] on <input type='password'>", attrMatcher.IsMatch(input2), false)
-	testResult("input[type=text] on <input type='text' name='username'>", attrMatcher.IsMatch(input3), true)
-
-	// Test attribute without tag
-	fmt.Println("\n4.2: Attribute Selector without tag ([type=text])")
-	attrMatcher2 := selector.ParseSelector("[type=text]")
-	testResult("[type=text] on <input type='text'>", attrMatcher2.IsMatch(input1), true)
-
-	// ========== TEST 5: COMBINATORS ==========
-	fmt.Println()
-	fmt.Println("--- TEST 5: Combinator Selectors ---")
-	fmt.Println()
-
-	// Build DOM structure:
-	// <div id="container">
-	//   <ul class="list">
-	//     <li>Item 1</li>
-	//     <li class="active">Item 2</li>
-	//     <li>Item 3</li>
-	//   </ul>
-	//   <p>Paragraph</p>
-	// </div>
-
-	container := graph.NewNode("div", map[string]string{"id": "container"})
-	ulList := graph.NewNode("ul", map[string]string{"class": "list"})
-	li1 := graph.NewNode("li", map[string]string{})
-	li2 := graph.NewNode("li", map[string]string{"class": "active"})
-	li3 := graph.NewNode("li", map[string]string{})
-	pTag := graph.NewNode("p", map[string]string{})
-
-	container.AddChild(ulList)
-	container.AddChild(pTag)
-	ulList.AddChild(li1)
-	ulList.AddChild(li2)
-	ulList.AddChild(li3)
-
-	fmt.Println("DOM Structure:")
-	fmt.Println(`<div id="container">
-  <ul class="list">
-    <li>Item 1</li>
-    <li class="active">Item 2</li>
-    <li>Item 3</li>
-  </ul>
-  <p>Paragraph</p>
-</div>`)
-
-	// 5.1: Child Combinator (>)
-	fmt.Println("\n5.1: Child Combinator (div > ul)")
-	childMatcher1 := selector.ParseSelector("div > ul")
-	testResult("div > ul on <ul> child of <div>", childMatcher1.IsMatch(ulList), true)
-	testResult("div > ul on <li> child of <ul>", childMatcher1.IsMatch(li1), false)
-
-	// 5.2: Descendant Combinator (space)
-	fmt.Println("\n5.2: Descendant Combinator (div li)")
-	descMatcher := selector.ParseSelector("div li")
-	testResult("div li on <li> descendant of <div>", descMatcher.IsMatch(li1), true)
-	testResult("div li on <li> descendant of <div>", descMatcher.IsMatch(li2), true)
-	testResult("div li on <li> descendant of <div>", descMatcher.IsMatch(li3), true)
-
-	// 5.3: Adjacent Sibling Combinator (+)
-	fmt.Println("\n5.3: Adjacent Sibling Combinator (li + li)")
-	adjMatcher := selector.ParseSelector("li + li")
-	testResult("li + li on Item 2 (adjacent to Item 1)", adjMatcher.IsMatch(li2), true)
-	testResult("li + li on Item 3 (adjacent to Item 2)", adjMatcher.IsMatch(li3), true)
-	testResult("li + li on Item 1 (no previous sibling)", adjMatcher.IsMatch(li1), false)
-
-	// 5.4: General Sibling Combinator (~)
-	fmt.Println("\n5.4: General Sibling Combinator (li ~ li)")
-	genMatcher := selector.ParseSelector("li ~ li")
-	testResult("li ~ li on Item 2 (has sibling before)", genMatcher.IsMatch(li2), true)
-	testResult("li ~ li on Item 3 (has sibling before)", genMatcher.IsMatch(li3), true)
-	testResult("li ~ li on Item 1 (no sibling before)", genMatcher.IsMatch(li1), false)
-
-	// 5.5: Class with Descendant Combinator
-	fmt.Println("\n5.5: Class with Combinator (ul .active)")
-	classDescMatcher := selector.ParseSelector("ul .active")
-	testResult("ul .active on <li class='active'>", classDescMatcher.IsMatch(li2), true)
-	testResult("ul .active on <li> without class", classDescMatcher.IsMatch(li1), false)
-
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("TESTING SCRAPER")
-	fmt.Println(strings.Repeat("=", 70))
-
-	fmt.Println()
-	fmt.Println("--- TEST 6: Scraper FetchHTML ---")
-	fmt.Println()
-
-	// Test on a known fast website
-	url := "http://example.com"
-	fmt.Printf("Fetching HTML from: %s\n", url)
-	htmlContent, err := scraper.FetchHTML(url)
-
-	if err != nil {
-		fmt.Printf("  Fetch failed: %v\n", err)
-	} else {
-		fmt.Printf("  Fetch successful! Received %d bytes.\n", len(htmlContent))
-		hasTitle := strings.Contains(htmlContent, "<title>Example Domain</title>")
-		testResult("Contains <title>Example Domain</title>", hasTitle, true)
-	}
-
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("ALL TESTS COMPLETED")
-	fmt.Println(strings.Repeat("=", 70))
+type traversalRequest struct {
+	URL       string `json:"url"`
+	HTML      string `json:"html"`
+	Selector  string `json:"selector"`
+	Algorithm string `json:"algorithm"`
+	Limit     int    `json:"limit"`
 }
 
-// testResult prints test result in a clear format
-func testResult(testName string, actual, expected bool) {
-	status := "✓"
-	if actual != expected {
-		status = "✗"
+type treeResponse struct {
+	ID         string            `json:"id"`
+	Value      string            `json:"value"`
+	Tag        string            `json:"tag"`
+	Attributes map[string]string `json:"attributes,omitempty"`
+	Text       string            `json:"text,omitempty"`
+	Texts      []string          `json:"texts,omitempty"`
+	Depth      int               `json:"depth"`
+	Children   []treeResponse    `json:"children"`
+}
+
+type logEntryResponse struct {
+	ID      string `json:"id"`
+	Tag     string `json:"tag"`
+	Depth   int    `json:"depth"`
+	Matched bool   `json:"matched"`
+}
+
+type traversalResponse struct {
+	Tree         *treeResponse      `json:"tree"`
+	Visited      []string           `json:"visited"`
+	Matched      []string           `json:"matched"`
+	TraversalLog []logEntryResponse `json:"traversalLog"`
+	Time         float64            `json:"time"`
+	VisitedCount int                `json:"visitedCount"`
+	MatchedCount int                `json:"matchedCount"`
+	MaxDepth     int                `json:"maxDepth"`
+	NodeCount    int                `json:"nodeCount"`
+	Algorithm    string             `json:"algorithm"`
+	Selector     string             `json:"selector"`
+	Source       string             `json:"source"`
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+func main() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/health", handleHealth)
+	mux.HandleFunc("/api/traversal", handleTraversal)
+
+	addr := ":" + defaultPort
+	log.Printf("backend listening on http://localhost%s", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatal(err)
 	}
-	result := "PASS"
-	if actual != expected {
-		result = "FAIL"
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	withCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
 	}
-	fmt.Printf("  %s %s: %v\n", status, testName, result)
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func handleTraversal(w http.ResponseWriter, r *http.Request) {
+	withCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method tidak didukung")
+		return
+	}
+
+	var request traversalRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "payload JSON tidak valid")
+		return
+	}
+
+	response, err := runTraversal(request)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func runTraversal(request traversalRequest) (*traversalResponse, error) {
+	request.Selector = strings.TrimSpace(request.Selector)
+	request.Algorithm = strings.ToLower(strings.TrimSpace(request.Algorithm))
+	request.URL = strings.TrimSpace(request.URL)
+
+	if request.Selector == "" {
+		return nil, fmt.Errorf("CSS selector wajib diisi")
+	}
+
+	if request.Algorithm == "" {
+		request.Algorithm = "bfs"
+	}
+	if request.Algorithm != "bfs" && request.Algorithm != "dfs" {
+		return nil, fmt.Errorf("algoritma harus bfs atau dfs")
+	}
+
+	if request.Limit < 0 {
+		return nil, fmt.Errorf("jumlah hasil tidak boleh negatif")
+	}
+
+	htmlInput, source, err := resolveHTMLInput(request)
+	if err != nil {
+		return nil, err
+	}
+
+	root, err := parser.ParseHTML(htmlInput)
+	if err != nil {
+		return nil, err
+	}
+
+	matcher := selector.ParseSelector(request.Selector)
+	if matcher == nil {
+		return nil, fmt.Errorf("CSS selector tidak valid")
+	}
+
+	var (
+		matches      []*graph.Node
+		visitedCount int
+		traversalLog []*graph.Node
+		elapsed      time.Duration
+	)
+
+	if request.Algorithm == "dfs" {
+		matches, visitedCount, traversalLog, elapsed = graph.SearchDFS(root, matcher, request.Limit)
+	} else {
+		matches, visitedCount, traversalLog, elapsed = graph.SearchBFS(root, matcher, request.Limit)
+	}
+
+	matchedIDs := nodeIDs(matches)
+	visitedIDs := nodeIDs(traversalLog)
+	matchedSet := make(map[uint64]bool, len(matches))
+	for _, node := range matches {
+		if node != nil {
+			matchedSet[node.ID] = true
+		}
+	}
+
+	tree := serializeTree(root)
+	return &traversalResponse{
+		Tree:         tree,
+		Visited:      visitedIDs,
+		Matched:      matchedIDs,
+		TraversalLog: serializeTraversalLog(traversalLog, matchedSet),
+		Time:         float64(elapsed.Microseconds()) / 1000.0,
+		VisitedCount: visitedCount,
+		MatchedCount: len(matches),
+		MaxDepth:     graph.MaxDepth(root),
+		NodeCount:    graph.CountNodes(root),
+		Algorithm:    request.Algorithm,
+		Selector:     request.Selector,
+		Source:       source,
+	}, nil
+}
+
+func resolveHTMLInput(request traversalRequest) (string, string, error) {
+	if request.URL != "" {
+		htmlInput, err := scraper.FetchHTML(request.URL)
+		if err != nil {
+			return "", "", err
+		}
+		return htmlInput, "url", nil
+	}
+
+	if strings.TrimSpace(request.HTML) == "" {
+		return "", "", fmt.Errorf("isi HTML atau URL wajib diisi")
+	}
+
+	return request.HTML, "html", nil
+}
+
+func serializeTree(node *graph.Node) *treeResponse {
+	if node == nil {
+		return nil
+	}
+
+	children := make([]treeResponse, 0, len(node.Children))
+	for _, child := range node.Children {
+		serialized := serializeTree(child)
+		if serialized != nil {
+			children = append(children, *serialized)
+		}
+	}
+
+	return &treeResponse{
+		ID:         formatNodeID(node),
+		Value:      nodeLabel(node),
+		Tag:        node.TagName,
+		Attributes: node.Attributes,
+		Text:       strings.Join(node.Texts, " "),
+		Texts:      node.Texts,
+		Depth:      node.Meta.Depth,
+		Children:   children,
+	}
+}
+
+func serializeTraversalLog(nodes []*graph.Node, matchedSet map[uint64]bool) []logEntryResponse {
+	logs := make([]logEntryResponse, 0, len(nodes))
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		logs = append(logs, logEntryResponse{
+			ID:      formatNodeID(node),
+			Tag:     nodeLabel(node),
+			Depth:   node.Meta.Depth,
+			Matched: matchedSet[node.ID],
+		})
+	}
+	return logs
+}
+
+func nodeIDs(nodes []*graph.Node) []string {
+	ids := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if node != nil {
+			ids = append(ids, formatNodeID(node))
+		}
+	}
+	return ids
+}
+
+func nodeLabel(node *graph.Node) string {
+	if node == nil {
+		return "unknown"
+	}
+
+	parts := []string{node.TagName}
+	if id := node.Attributes["id"]; id != "" {
+		parts = append(parts, "#"+id)
+	}
+	if className := node.Attributes["class"]; className != "" {
+		for _, classPart := range strings.Fields(className) {
+			parts = append(parts, "."+classPart)
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+func formatNodeID(node *graph.Node) string {
+	return strconv.FormatUint(node.ID, 10)
+}
+
+func withCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("failed writing response: %v", err)
+	}
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, errorResponse{Error: message})
 }

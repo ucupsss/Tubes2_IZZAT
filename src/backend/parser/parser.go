@@ -56,8 +56,18 @@ func convertChildren(htmlNode *html.Node) []*graph.Node {
 func convertElement(htmlNode *html.Node) *graph.Node {
 	node := graph.NewNode(strings.ToLower(htmlNode.Data), convertAttributes(htmlNode.Attr))
 
-	for _, child := range convertChildren(htmlNode) {
-		node.AddChild(child)
+	for child := htmlNode.FirstChild; child != nil; child = child.NextSibling {
+		switch child.Type {
+		case html.TextNode:
+			text := strings.Join(strings.Fields(child.Data), " ")
+			node.AddText(text)
+		case html.ElementNode:
+			node.AddChild(convertElement(child))
+		default:
+			for _, nestedChild := range convertChildren(child) {
+				node.AddChild(nestedChild)
+			}
+		}
 	}
 
 	return node
