@@ -41,6 +41,61 @@ function normalizeTree(node, traversalLog = []) {
   return annotateTree(node, nextOrderRef, traversalOrder);
 }
 
+function normalizeURLInput(value) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return "";
+  }
+
+  if (!trimmedValue.includes("://")) {
+    return `http://${trimmedValue}`;
+  }
+
+  return trimmedValue;
+}
+
+function validateTraversalInput({ inputType, url, html, selector, resultMode, resultLimit }) {
+  if (!selector.trim()) {
+    return "CSS selector wajib diisi.";
+  }
+
+  if (inputType === "url") {
+    const trimmedURL = url.trim();
+    if (!trimmedURL) {
+      return "URL wajib diisi.";
+    }
+
+    try {
+      const parsedURL = new URL(normalizeURLInput(trimmedURL));
+      if (!["http:", "https:"].includes(parsedURL.protocol)) {
+        return "URL harus menggunakan http:// atau https://.";
+      }
+    } catch {
+      return "Format URL tidak valid.";
+    }
+  }
+
+  if (inputType === "html") {
+    const trimmedHTML = html.trim();
+    if (!trimmedHTML) {
+      return "HTML wajib diisi.";
+    }
+
+    if (!trimmedHTML.includes("<") || !trimmedHTML.includes(">")) {
+      return "Input HTML tidak tampak valid.";
+    }
+  }
+
+  if (resultMode === "top") {
+    const parsedLimit = Number.parseInt(resultLimit, 10);
+    if (!Number.isFinite(parsedLimit) || parsedLimit < 1) {
+      return "Jumlah hasil Top n harus berupa angka minimal 1.";
+    }
+  }
+
+  return "";
+}
+
 export default function DOM() {
   const [inputType, setInputType] = useState("html");
   const [url, setUrl] = useState("");
@@ -56,14 +111,28 @@ export default function DOM() {
   const [result, setResult] = useState(null);
 
   async function handleStart() {
-    setLoading(true);
     setError("");
+    const inputError = validateTraversalInput({
+      inputType,
+      url,
+      html,
+      selector,
+      resultMode,
+      resultLimit,
+    });
+    if (inputError) {
+      setResult(null);
+      setError(inputError);
+      return;
+    }
+
+    setLoading(true);
     const parsedLimit = Number.parseInt(resultLimit, 10);
 
     try {
       const response = await runTraversal({
         html: inputType === "html" ? html : undefined,
-        url: inputType === "url" ? url : undefined,
+        url: inputType === "url" ? normalizeURLInput(url) : undefined,
         selector,
         algorithm,
         limit: resultMode === "all" ? 0 : Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 1),
@@ -141,7 +210,7 @@ export default function DOM() {
                 type="url"
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://example.com"
+                placeholder="example.com atau https://example.com"
               />
             </div>
           ) : (
