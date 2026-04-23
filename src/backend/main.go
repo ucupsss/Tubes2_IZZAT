@@ -114,6 +114,7 @@ func runTraversal(request traversalRequest) (*traversalResponse, error) {
 	request.Selector = strings.TrimSpace(request.Selector)
 	request.Algorithm = strings.ToLower(strings.TrimSpace(request.Algorithm))
 	request.URL = strings.TrimSpace(request.URL)
+	request.HTML = strings.TrimSpace(request.HTML)
 
 	if request.Selector == "" {
 		return nil, fmt.Errorf("CSS selector wajib diisi")
@@ -193,8 +194,12 @@ func resolveHTMLInput(request traversalRequest) (string, string, error) {
 		return htmlInput, "url", nil
 	}
 
-	if strings.TrimSpace(request.HTML) == "" {
-		return "", "", fmt.Errorf("isi HTML atau URL wajib diisi")
+	if request.HTML == "" {
+		return "", "", fmt.Errorf("input HTML atau URL wajib diisi")
+	}
+
+	if err := parser.ValidateHTMLStructure(request.HTML); err != nil {
+		return "", "", err
 	}
 
 	return request.HTML, "html", nil
