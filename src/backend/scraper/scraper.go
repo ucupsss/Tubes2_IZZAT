@@ -22,7 +22,6 @@ func NormalizeURL(rawURL string) string {
 	return trimmed
 }
 
-// FetchHTML performs an HTTP GET request to the target URL and returns the response body as a string.
 func FetchHTML(rawURL string) (string, error) {
 	normalizedURL := NormalizeURL(rawURL)
 	parsedURL, err := url.ParseRequestURI(normalizedURL)

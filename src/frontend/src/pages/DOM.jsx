@@ -156,6 +156,32 @@ export default function DOM() {
 
   const nodeOptions = flattenNodeOptions(result?.tree);
 
+  function resetLCASelection() {
+    setFirstNodeId("");
+    setSecondNodeId("");
+  }
+
+  function resetDOMSourceState() {
+    resetLCASelection();
+    setResult(null);
+    setError("");
+  }
+
+  function handleInputTypeChange(nextInputType) {
+    setInputType(nextInputType);
+    resetDOMSourceState();
+  }
+
+  function handleURLChange(event) {
+    setUrl(event.target.value);
+    resetDOMSourceState();
+  }
+
+  function handleHTMLChange(event) {
+    setHtml(event.target.value);
+    resetDOMSourceState();
+  }
+
   async function handleStart() {
     setError("");
     const inputError = validateTraversalInput({
@@ -177,6 +203,9 @@ export default function DOM() {
 
     setLoading(true);
     const parsedLimit = Number.parseInt(resultLimit, 10);
+    const availableNodeIDs = new Set(nodeOptions.map((option) => option.id));
+    const nextFirstNodeId = availableNodeIDs.has(firstNodeId) ? firstNodeId : "";
+    const nextSecondNodeId = availableNodeIDs.has(secondNodeId) ? secondNodeId : "";
 
     try {
       const response = await runTraversal({
@@ -186,8 +215,8 @@ export default function DOM() {
         algorithm,
         limit: resultMode === "all" ? 0 : Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 1),
         lca: lcaMode,
-        firstNodeId: lcaMode ? firstNodeId : "",
-        secondNodeId: lcaMode ? secondNodeId : "",
+        firstNodeId: lcaMode ? nextFirstNodeId : "",
+        secondNodeId: lcaMode ? nextSecondNodeId : "",
       });
 
       if (response?.error) {
@@ -237,8 +266,7 @@ export default function DOM() {
     setLcaMode(checked);
 
     if (!checked) {
-      setFirstNodeId("");
-      setSecondNodeId("");
+      resetLCASelection();
       return;
     }
 
@@ -265,7 +293,7 @@ export default function DOM() {
                 <input
                   type="radio"
                   checked={inputType === "url"}
-                  onChange={() => setInputType("url")}
+                  onChange={() => handleInputTypeChange("url")}
                 />
                 URL
               </label>
@@ -273,7 +301,7 @@ export default function DOM() {
                 <input
                   type="radio"
                   checked={inputType === "html"}
-                  onChange={() => setInputType("html")}
+                  onChange={() => handleInputTypeChange("html")}
                 />
                 HTML
               </label>
@@ -286,14 +314,14 @@ export default function DOM() {
               <input
                 type="url"
                 value={url}
-                onChange={(event) => setUrl(event.target.value)}
+                onChange={handleURLChange}
                 placeholder="example.com atau https://example.com"
               />
             </div>
           ) : (
             <div className="form-group">
               <label>HTML</label>
-              <textarea value={html} onChange={(event) => setHtml(event.target.value)} />
+              <textarea value={html} onChange={handleHTMLChange} />
             </div>
           )}
 
