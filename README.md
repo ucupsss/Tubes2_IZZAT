@@ -99,7 +99,7 @@ docker compose up --build
 
 Setelah container aktif:
 
-- Frontend: `http://localhost:8080`
+- Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:5175`
 - Health check backend: `http://localhost:5175/api/health`
 
