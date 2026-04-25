@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,9 @@ type traversalRequest struct {
 	Selector  string `json:"selector"`
 	Algorithm string `json:"algorithm"`
 	Limit     int    `json:"limit"`
+	LCA       bool   `json:"lca"`
+	FirstNode string `json:"firstNodeId"`
+	SecondNode string `json:"secondNodeId"`
 }
 
 type treeResponse struct {
@@ -47,6 +51,7 @@ type traversalResponse struct {
 	Visited      []string           `json:"visited"`
 	Matched      []string           `json:"matched"`
 	TraversalLog []logEntryResponse `json:"traversalLog"`
+	LCA          *lcaResponse       `json:"lca,omitempty"`
 	Time         float64            `json:"time"`
 	VisitedCount int                `json:"visitedCount"`
 	MatchedCount int                `json:"matchedCount"`
@@ -59,6 +64,17 @@ type traversalResponse struct {
 
 type errorResponse struct {
 	Error string `json:"error"`
+}
+
+type lcaResponse struct {
+	Enabled        bool   `json:"enabled"`
+	FirstNodeID    string `json:"firstNodeId"`
+	FirstNodeLabel string `json:"firstNodeLabel"`
+	SecondNodeID   string `json:"secondNodeId"`
+	SecondNodeLabel string `json:"secondNodeLabel"`
+	AncestorID     string `json:"ancestorId"`
+	AncestorLabel  string `json:"ancestorLabel"`
+	AncestorDepth  int    `json:"ancestorDepth"`
 }
 
 func main() {
@@ -169,11 +185,16 @@ func runTraversal(request traversalRequest) (*traversalResponse, error) {
 	}
 
 	tree := serializeTree(root)
+	lcaResult, err := resolveLCA(root, request)
+	if err != nil {
+		return nil, err
+	}
 	return &traversalResponse{
 		Tree:         tree,
 		Visited:      visitedIDs,
 		Matched:      matchedIDs,
 		TraversalLog: serializeTraversalLog(traversalLog, matchedSet),
+		LCA:          lcaResult,
 		Time:         float64(elapsed.Microseconds()) / 1000.0,
 		VisitedCount: visitedCount,
 		MatchedCount: len(matches),
@@ -183,6 +204,99 @@ func runTraversal(request traversalRequest) (*traversalResponse, error) {
 		Selector:     request.Selector,
 		Source:       source,
 	}, nil
+}
+
+func resolveLCA(root *graph.Node, request traversalRequest) (*lcaResponse, error) {
+	if !request.LCA {
+		return nil, nil
+	}
+
+	nodesByID := collectNodesByID(root)
+	if len(nodesByID) < 2 {
+		return nil, fmt.Errorf("mode LCA membutuhkan minimal dua node pada pohon DOM")
+	}
+
+	firstNode, secondNode, err := pickLCANodes(nodesByID, request.FirstNode, request.SecondNode)
+	if err != nil {
+		return nil, err
+	}
+
+	ancestor := graph.GetLCA(firstNode, secondNode)
+	if ancestor == nil {
+		return nil, fmt.Errorf("LCA tidak ditemukan untuk dua node yang dipilih")
+	}
+
+	return &lcaResponse{
+		Enabled:         true,
+		FirstNodeID:     formatNodeID(firstNode),
+		FirstNodeLabel:  nodeLabel(firstNode),
+		SecondNodeID:    formatNodeID(secondNode),
+		SecondNodeLabel: nodeLabel(secondNode),
+		AncestorID:      formatNodeID(ancestor),
+		AncestorLabel:   nodeLabel(ancestor),
+		AncestorDepth:   ancestor.Meta.Depth,
+	}, nil
+}
+
+func collectNodesByID(root *graph.Node) map[string]*graph.Node {
+	nodesByID := make(map[string]*graph.Node)
+	if root == nil {
+		return nodesByID
+	}
+
+	stack := []*graph.Node{root}
+	for len(stack) > 0 {
+		last := len(stack) - 1
+		current := stack[last]
+		stack = stack[:last]
+		if current == nil {
+			continue
+		}
+
+		nodesByID[formatNodeID(current)] = current
+		stack = append(stack, current.Children...)
+	}
+
+	return nodesByID
+}
+
+func pickLCANodes(nodesByID map[string]*graph.Node, firstID, secondID string) (*graph.Node, *graph.Node, error) {
+	firstID = strings.TrimSpace(firstID)
+	secondID = strings.TrimSpace(secondID)
+
+	if firstID != "" && secondID != "" {
+		firstNode := nodesByID[firstID]
+		if firstNode == nil {
+			return nil, nil, fmt.Errorf("node pertama untuk LCA tidak ditemukan")
+		}
+
+		secondNode := nodesByID[secondID]
+		if secondNode == nil {
+			return nil, nil, fmt.Errorf("node kedua untuk LCA tidak ditemukan")
+		}
+
+		return firstNode, secondNode, nil
+	}
+
+	orderedKeys := make([]string, 0, len(nodesByID))
+	for id := range nodesByID {
+		orderedKeys = append(orderedKeys, id)
+	}
+
+	sort.Slice(orderedKeys, func(i, j int) bool {
+		parsedA, errA := strconv.ParseUint(orderedKeys[i], 10, 64)
+		parsedB, errB := strconv.ParseUint(orderedKeys[j], 10, 64)
+		if errA != nil || errB != nil {
+			return orderedKeys[i] < orderedKeys[j]
+		}
+		return parsedA < parsedB
+	})
+
+	if len(orderedKeys) < 2 {
+		return nil, nil, fmt.Errorf("mode LCA membutuhkan minimal dua node pada pohon DOM")
+	}
+
+	return nodesByID[orderedKeys[0]], nodesByID[orderedKeys[1]], nil
 }
 
 func resolveHTMLInput(request traversalRequest) (string, string, error) {
