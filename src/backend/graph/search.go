@@ -1,6 +1,21 @@
 package graph
 
-import "time"
+import (
+	"runtime"
+	"sync"
+	"time"
+)
+
+type bfsVisitResult struct {
+	node     *Node
+	matched  bool
+	children []*Node
+}
+
+type dfsVisitResult struct {
+	traversal []*Node
+	matches   []*Node
+}
 
 func SearchBFS(root *Node, matcher SelectorMatcher, limit int) ([]*Node, int, []*Node, time.Duration) {
 	start := time.Now()
@@ -10,30 +25,41 @@ func SearchBFS(root *Node, matcher SelectorMatcher, limit int) ([]*Node, int, []
 
 	results := make([]*Node, 0)
 	traversalLog := make([]*Node, 0)
-	queue := make([]*Node, 1, 16)
-	queue[0] = root
-	visitedCount := 0
-	head := 0
+	frontier := []*Node{root}
 
-	for head < len(queue) {
-		current := queue[head]
-		queue[head] = nil
-		head++
+	for len(frontier) > 0 {
+		levelResults := processBFSLevel(frontier, matcher)
+		nextFrontier := make([]*Node, 0)
+		stop := false
 
-		visitedCount++
-		traversalLog = append(traversalLog, current)
+		for _, item := range levelResults {
+			if item.node == nil {
+				continue
+			}
 
-		if matcher.IsMatch(current) {
-			results = append(results, current)
-			if limit > 0 && len(results) >= limit {
+			traversalLog = append(traversalLog, item.node)
+			if item.matched {
+				results = append(results, item.node)
+				if limit > 0 && len(results) >= limit {
+					stop = true
+				}
+			}
+
+			if stop {
 				break
 			}
+
+			nextFrontier = append(nextFrontier, item.children...)
 		}
 
-		queue = append(queue, current.Children...)
+		if stop {
+			break
+		}
+
+		frontier = nextFrontier
 	}
 
-	return results, visitedCount, traversalLog, time.Since(start)
+	return results, len(traversalLog), traversalLog, time.Since(start)
 }
 
 func SearchDFS(root *Node, matcher SelectorMatcher, limit int) ([]*Node, int, []*Node, time.Duration) {
@@ -42,32 +68,155 @@ func SearchDFS(root *Node, matcher SelectorMatcher, limit int) ([]*Node, int, []
 		return nil, 0, nil, time.Since(start)
 	}
 
-	results := make([]*Node, 0)
-	traversalLog := make([]*Node, 0)
-	stack := make([]*Node, 1, 16)
-	stack[0] = root
-	visitedCount := 0
+	sem := make(chan struct{}, traversalWorkerCount())
+	result := processDFSNode(root, matcher, sem)
 
-	for len(stack) > 0 {
-		last := len(stack) - 1
-		current := stack[last]
-		stack[last] = nil
-		stack = stack[:last]
+	traversalLog := result.traversal
+	results := result.matches
 
-		visitedCount++
-		traversalLog = append(traversalLog, current)
-
-		if matcher.IsMatch(current) {
-			results = append(results, current)
-			if limit > 0 && len(results) >= limit {
-				break
+	if limit > 0 && len(results) >= limit {
+		trimmedMatches := results[:limit]
+		allowed := make(map[uint64]struct{}, len(trimmedMatches))
+		for _, node := range trimmedMatches {
+			if node != nil {
+				allowed[node.ID] = struct{}{}
 			}
 		}
 
-		for i := len(current.Children) - 1; i >= 0; i-- {
-			stack = append(stack, current.Children[i])
+		matchCount := 0
+		cutIndex := len(traversalLog)
+		for index, node := range traversalLog {
+			if node == nil {
+				continue
+			}
+			if _, ok := allowed[node.ID]; ok {
+				matchCount++
+				if matchCount == limit {
+					cutIndex = index + 1
+					break
+				}
+			}
+		}
+
+		results = trimmedMatches
+		traversalLog = traversalLog[:cutIndex]
+	}
+
+	return results, len(traversalLog), traversalLog, time.Since(start)
+}
+
+func processBFSLevel(frontier []*Node, matcher SelectorMatcher) []bfsVisitResult {
+	results := make([]bfsVisitResult, len(frontier))
+	if len(frontier) == 0 {
+		return results
+	}
+
+	workerCount := minInt(traversalWorkerCount(), len(frontier))
+	jobs := make(chan int, len(frontier))
+	var waitGroup sync.WaitGroup
+
+	for worker := 0; worker < workerCount; worker++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			for index := range jobs {
+				node := frontier[index]
+				if node == nil {
+					continue
+				}
+
+				children := make([]*Node, 0, len(node.Children))
+				for _, child := range node.Children {
+					if child != nil {
+						children = append(children, child)
+					}
+				}
+
+				results[index] = bfsVisitResult{
+					node:     node,
+					matched:  matcher.IsMatch(node),
+					children: children,
+				}
+			}
+		}()
+	}
+
+	for index := range frontier {
+		jobs <- index
+	}
+	close(jobs)
+	waitGroup.Wait()
+
+	return results
+}
+
+func processDFSNode(node *Node, matcher SelectorMatcher, sem chan struct{}) dfsVisitResult {
+	if node == nil {
+		return dfsVisitResult{
+			traversal: []*Node{},
+			matches:   []*Node{},
 		}
 	}
 
-	return results, visitedCount, traversalLog, time.Since(start)
+	result := dfsVisitResult{
+		traversal: []*Node{node},
+		matches:   []*Node{},
+	}
+	if matcher.IsMatch(node) {
+		result.matches = append(result.matches, node)
+	}
+
+	childResults := make([]dfsVisitResult, len(node.Children))
+	var waitGroup sync.WaitGroup
+
+	for index, child := range node.Children {
+		if child == nil {
+			continue
+		}
+
+		if tryAcquireWorkerSlot(sem) {
+			waitGroup.Add(1)
+			go func(position int, currentChild *Node) {
+				defer waitGroup.Done()
+				defer releaseWorkerSlot(sem)
+				childResults[position] = processDFSNode(currentChild, matcher, sem)
+			}(index, child)
+			continue
+		}
+
+		childResults[index] = processDFSNode(child, matcher, sem)
+	}
+
+	waitGroup.Wait()
+
+	for _, childResult := range childResults {
+		result.traversal = append(result.traversal, childResult.traversal...)
+		result.matches = append(result.matches, childResult.matches...)
+	}
+
+	return result
+}
+
+func traversalWorkerCount() int {
+	workerCount := runtime.NumCPU()
+	if workerCount < 2 {
+		return 2
+	}
+	return workerCount
+}
+
+func tryAcquireWorkerSlot(sem chan struct{}) bool {
+	select {
+	case sem <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func releaseWorkerSlot(sem chan struct{}) {
+	select {
+	case <-sem:
+	default:
+	}
 }
