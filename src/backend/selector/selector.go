@@ -5,12 +5,10 @@ import (
 	"tubes2_izzat/src/backend/graph"
 )
 
-// TagMatcher implements SelectorMatcher for HTML tag matching.
 type TagMatcher struct {
 	tagName string
 }
 
-// IsMatch checks if a node matches the tag criteria.
 func (tm *TagMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
@@ -18,12 +16,10 @@ func (tm *TagMatcher) IsMatch(node *graph.Node) bool {
 	return strings.ToLower(node.TagName) == strings.ToLower(tm.tagName)
 }
 
-// ClassMatcher implements SelectorMatcher for HTML class attribute matching.
 type ClassMatcher struct {
 	className string
 }
 
-// IsMatch checks if a node matches the class criteria.
 func (cm *ClassMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
@@ -43,12 +39,10 @@ func (cm *ClassMatcher) IsMatch(node *graph.Node) bool {
 	return false
 }
 
-// IDMatcher implements SelectorMatcher for HTML id attribute matching.
 type IDMatcher struct {
 	id string
 }
 
-// IsMatch checks if a node matches the id criteria.
 func (im *IDMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
@@ -62,22 +56,18 @@ func (im *IDMatcher) IsMatch(node *graph.Node) bool {
 	return idAttr == im.id
 }
 
-// UniversalMatcher implements SelectorMatcher for universal selector matching (*).
 type UniversalMatcher struct{}
 
-// IsMatch checks if a node matches (always true for universal selector).
 func (um *UniversalMatcher) IsMatch(node *graph.Node) bool {
 	return node != nil
 }
 
-// AttributeMatcher implements SelectorMatcher for attribute matching (e.g., a[href=example.com]).
 type AttributeMatcher struct {
 	tagName   string
 	attribute string
 	value     string
 }
 
-// IsMatch checks if a node matches the attribute criteria.
 func (am *AttributeMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
@@ -95,13 +85,11 @@ func (am *AttributeMatcher) IsMatch(node *graph.Node) bool {
 	return attrValue == am.value
 }
 
-// TagClassMatcher implements SelectorMatcher for tag+class matching (e.g., p.intro).
 type TagClassMatcher struct {
 	tagName   string
 	className string
 }
 
-// IsMatch checks if a node matches the tag and class criteria.
 func (tcm *TagClassMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil {
 		return false
@@ -125,13 +113,11 @@ func (tcm *TagClassMatcher) IsMatch(node *graph.Node) bool {
 	return false
 }
 
-// MulticlassMatcher implements SelectorMatcher for multiclass matching (e.g., .btn.primary or p.btn.primary).
 type MulticlassMatcher struct {
 	tagName    string
 	classNames []string
 }
 
-// IsMatch checks if a node has all the required classes.
 func (mcm *MulticlassMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil || len(mcm.classNames) == 0 {
 		return false
@@ -152,7 +138,6 @@ func (mcm *MulticlassMatcher) IsMatch(node *graph.Node) bool {
 		classMap[cls] = true
 	}
 
-	// Check if all required classes are present
 	for _, requiredClass := range mcm.classNames {
 		if !classMap[requiredClass] {
 			return false
@@ -161,30 +146,26 @@ func (mcm *MulticlassMatcher) IsMatch(node *graph.Node) bool {
 	return true
 }
 
-// CombinatorMatcher implements SelectorMatcher for CSS combinators.
-// Combinators: > (child), space (descendant), + (adjacent sibling), ~ (general sibling)
 type CombinatorMatcher struct {
 	left       graph.SelectorMatcher
 	right      graph.SelectorMatcher
-	combinator string // ">", " ", "+", "~"
+	combinator string
 }
 
-// IsMatch checks if a node matches the combinator criteria.
 func (cm *CombinatorMatcher) IsMatch(node *graph.Node) bool {
 	if node == nil || cm.right == nil || cm.left == nil {
 		return false
 	}
 
-	// First, check if the node matches the right selector
 	if !cm.right.IsMatch(node) {
 		return false
 	}
 
 	switch cm.combinator {
-	case ">": // Child combinator: immediate parent must match left selector
+	case ">":
 		return node.Parent != nil && cm.left.IsMatch(node.Parent)
 
-	case " ": // Descendant combinator: any ancestor must match left selector
+	case " ":
 		current := node.Parent
 		for current != nil {
 			if cm.left.IsMatch(current) {
@@ -194,7 +175,7 @@ func (cm *CombinatorMatcher) IsMatch(node *graph.Node) bool {
 		}
 		return false
 
-	case "+": // Adjacent sibling combinator: previous sibling must match left selector
+	case "+":
 		if node.Parent == nil {
 			return false
 		}
@@ -205,7 +186,7 @@ func (cm *CombinatorMatcher) IsMatch(node *graph.Node) bool {
 		}
 		return false
 
-	case "~": // General sibling combinator: any earlier sibling must match left selector
+	case "~":
 		if node.Parent == nil {
 			return false
 		}
@@ -226,17 +207,6 @@ func (cm *CombinatorMatcher) IsMatch(node *graph.Node) bool {
 	}
 }
 
-// ParseSelector parses a CSS selector string and returns the corresponding SelectorMatcher implementation.
-// Supported formats:
-// - * (universal)
-// - tag name (e.g., div, p)
-// - .className (class selector)
-// - .class1.class2 (multiclass selector)
-// - #id (id selector)
-// - tag.class (tag+class)
-// - tag[attr=value] (attribute selector)
-// - a[href=value] (tag+attribute)
-// Supported combinators: > (child), space (descendant), + (adjacent sibling), ~ (general sibling)
 func ParseSelector(input string) graph.SelectorMatcher {
 	input = strings.TrimSpace(input)
 
@@ -244,7 +214,6 @@ func ParseSelector(input string) graph.SelectorMatcher {
 		return nil
 	}
 
-	// Check for combinators (but not within brackets)
 	combIdx, combType := findCombinatorOutsideBrackets(input)
 	if combIdx != -1 {
 		leftStr := input[:combIdx]
@@ -267,12 +236,10 @@ func ParseSelector(input string) graph.SelectorMatcher {
 		}
 	}
 
-	// Check for attribute selector [attr=value]
 	if strings.Contains(input, "[") && strings.Contains(input, "]") {
 		return parseAttributeSelector(input)
 	}
 
-	// Check for tag+class or tag+multiclass (e.g., p.classname or p.class1.class2)
 	if strings.Contains(input, ".") && !strings.HasPrefix(input, ".") {
 		parts := strings.Split(input, ".")
 		if len(parts) >= 2 && parts[0] != "" {
@@ -283,13 +250,11 @@ func ParseSelector(input string) graph.SelectorMatcher {
 		}
 	}
 
-	// Check for multiclass selector (.class1.class2...)
 	if strings.HasPrefix(input, ".") && strings.Count(input, ".") > 1 {
 		classNames := strings.Split(strings.TrimPrefix(input, "."), ".")
 		return &MulticlassMatcher{tagName: "", classNames: classNames}
 	}
 
-	// Simple selectors
 	if input == "*" {
 		return &UniversalMatcher{}
 	} else if strings.HasPrefix(input, ".") {
@@ -301,7 +266,6 @@ func ParseSelector(input string) graph.SelectorMatcher {
 	return &TagMatcher{tagName: input}
 }
 
-// parseAttributeSelector parses attribute selectors like a[href=value] or [attr=value]
 func parseAttributeSelector(input string) graph.SelectorMatcher {
 	bracketIdx := strings.Index(input, "[")
 	tagName := ""
@@ -336,15 +300,11 @@ func parseAttributeSelector(input string) graph.SelectorMatcher {
 	}
 }
 
-// findCombinatorOutsideBrackets finds the first combinator outside of brackets []
-// Returns the index of the combinator and the string matched (e.g. " > ", " + ", "~", or " " for descendant)
 func findCombinatorOutsideBrackets(input string) (int, string) {
 	inBrackets := false
 	inQuotes := false
 	var quoteChar rune
 
-	// look for combinators from right to left to build the tree correctly
-	// e.g., "div > p span" -> combinator " ", left "div > p", right "span"
 	for i := len(input) - 1; i >= 0; i-- {
 		char := rune(input[i])
 
@@ -365,7 +325,6 @@ func findCombinatorOutsideBrackets(input string) (int, string) {
 			if char == '>' || char == '+' || char == '~' {
 				return i, string(char)
 			}
-			// check for descendant space (must not be adjacent to another combinator, and not trailing space)
 			if char == ' ' && i > 0 && i < len(input)-1 {
 				prevChar := rune(input[i-1])
 				nextChar := rune(input[i+1])

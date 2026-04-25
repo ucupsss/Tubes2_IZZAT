@@ -69,7 +69,6 @@ func (n *Node) InitUpTable(levels int) {
 	n.Meta.Up = make([]*Node, levels)
 }
 
-// MaxDepth returns the deepest level in the tree, with root depth counted as 0.
 func MaxDepth(root *Node) int {
 	if root == nil {
 		return 0
@@ -97,7 +96,6 @@ func MaxDepth(root *Node) int {
 	return maxDepth
 }
 
-// CountNodes returns the number of non-nil nodes in the tree.
 func CountNodes(root *Node) int {
 	if root == nil {
 		return 0

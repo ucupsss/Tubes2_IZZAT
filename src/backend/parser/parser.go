@@ -16,7 +16,6 @@ var voidElements = map[string]bool{
 	"param": true, "source": true, "track": true, "wbr": true,
 }
 
-// ParseHTML converts an HTML document string into a graph.Node tree.
 func ParseHTML(input string) (*graph.Node, error) {
 	if strings.TrimSpace(input) == "" {
 		return nil, fmt.Errorf("HTML kosong")
@@ -46,7 +45,6 @@ func ParseHTML(input string) (*graph.Node, error) {
 	return root, nil
 }
 
-// ValidateHTMLStructure performs a lightweight structural validation for manually entered HTML.
 func ValidateHTMLStructure(input string) error {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
