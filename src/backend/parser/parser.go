@@ -22,6 +22,8 @@ func ParseHTML(input string) (*graph.Node, error) {
 		return nil, fmt.Errorf("HTML kosong")
 	}
 
+	graph.ResetNodeIDs()
+
 	document, err := html.Parse(strings.NewReader(input))
 	if err != nil {
 		return nil, fmt.Errorf("gagal parsing HTML: %w", err)

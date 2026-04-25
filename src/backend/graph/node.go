@@ -4,6 +4,10 @@ import "sync/atomic"
 
 var nextNodeID uint64
 
+func ResetNodeIDs() {
+	atomic.StoreUint64(&nextNodeID, 0)
+}
+
 type NodeMeta struct {
 	Depth int
 	Up    []*Node

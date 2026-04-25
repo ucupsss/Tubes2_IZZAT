@@ -19,6 +19,9 @@ export default function TreeNode({
   depth = 0,
   visited,
   matched,
+  selectedA,
+  selectedB,
+  selectedLCA,
   animate = false,
 }) {
   const [visible, setVisible] = useState(() => !animate);
@@ -41,9 +44,24 @@ export default function TreeNode({
   const texts = Array.isArray(node?.texts) && node.texts.length > 0
     ? node.texts.filter(Boolean)
     : [node?.text].filter(Boolean);
-  const isMatched = matched.has(nodeId);
   const isVisited = visited.has(nodeId);
-  const cls = isMatched ? "matched" : isVisited ? "visited" : "";
+  const isMatched = matched.has(nodeId);
+  const isSelectedA = selectedA.has(nodeId);
+  const isSelectedB = selectedB.has(nodeId);
+  const isSelectedLCA = selectedLCA.has(nodeId);
+
+  let cls = "";
+  if (isSelectedLCA) {
+    cls = "selected-lca";
+  } else if (isSelectedA) {
+    cls = "selected-a";
+  } else if (isSelectedB) {
+    cls = "selected-b";
+  } else if (isMatched) {
+    cls = "matched";
+  } else if (isVisited) {
+    cls = "visited";
+  }
 
   return (
     <div>
@@ -51,7 +69,7 @@ export default function TreeNode({
         <div
           className={`tree-node ${cls} ${visible ? "is-visible" : "is-hidden"}`.trim()}
         >
-          {"|- "}&lt;{nodeValue}&gt;
+          {"|- "}&lt;{nodeValue}&gt; <span className="tree-node-id">[id: {nodeId}]</span>
         </div>
 
         {attributes.length > 0 && (
@@ -81,6 +99,9 @@ export default function TreeNode({
           depth={depth + 1}
           visited={visited}
           matched={matched}
+          selectedA={selectedA}
+          selectedB={selectedB}
+          selectedLCA={selectedLCA}
           animate={animate}
         />
       ))}

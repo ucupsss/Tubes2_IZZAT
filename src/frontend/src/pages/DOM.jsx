@@ -1,6 +1,6 @@
 import { useState } from "react";
 import TreeNode from "../components/TreeNode";
-import { runTraversal } from "../services/api";
+import { runLCA, runTraversal } from "../services/api";
 
 const fallbackHtml =
   "<html><body><div><p>Hello</p><div class='box'>World</div></div></body></html>";
@@ -109,6 +109,12 @@ export default function DOM() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [activeDOMInput, setActiveDOMInput] = useState(null);
+  const [lcaNodeIdA, setLcaNodeIdA] = useState("");
+  const [lcaNodeIdB, setLcaNodeIdB] = useState("");
+  const [lcaLoading, setLcaLoading] = useState(false);
+  const [lcaError, setLcaError] = useState("");
+  const [lcaResult, setLcaResult] = useState(null);
 
   async function handleStart() {
     setError("");
@@ -130,9 +136,10 @@ export default function DOM() {
     const parsedLimit = Number.parseInt(resultLimit, 10);
 
     try {
+      const normalizedURL = inputType === "url" ? normalizeURLInput(url) : "";
       const response = await runTraversal({
         html: inputType === "html" ? html : undefined,
-        url: inputType === "url" ? normalizeURLInput(url) : undefined,
+        url: inputType === "url" ? normalizedURL : undefined,
         selector,
         algorithm,
         limit: resultMode === "all" ? 0 : Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 1),
@@ -157,9 +164,19 @@ export default function DOM() {
           ? response.matchedCount
           : response?.matched?.length ?? 0,
       });
+      setActiveDOMInput({
+        html: inputType === "html" ? html : undefined,
+        url: inputType === "url" ? normalizedURL : undefined,
+      });
+      setLcaNodeIdA("");
+      setLcaNodeIdB("");
+      setLcaError("");
+      setLcaResult(null);
       setAnimationKey((current) => current + 1);
     } catch (err) {
       setResult(null);
+      setActiveDOMInput(null);
+      setLcaResult(null);
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
       setLoading(false);
@@ -171,8 +188,52 @@ export default function DOM() {
     setAnimationKey((current) => current + 1);
   }
 
+  async function handleFindLCA() {
+    setLcaError("");
+
+    if (!result?.tree || !activeDOMInput) {
+      setLcaResult(null);
+      setLcaError("Jalankan traversal atau muat DOM terlebih dahulu.");
+      return;
+    }
+
+    if (!lcaNodeIdA.trim() || !lcaNodeIdB.trim()) {
+      setLcaResult(null);
+      setLcaError("Node ID A dan Node ID B wajib diisi.");
+      return;
+    }
+
+    setLcaLoading(true);
+
+    try {
+      const response = await runLCA({
+        html: activeDOMInput.html,
+        url: activeDOMInput.url,
+        nodeIdA: lcaNodeIdA.trim(),
+        nodeIdB: lcaNodeIdB.trim(),
+      });
+
+      setLcaResult(response);
+    } catch (err) {
+      setLcaResult(null);
+      setLcaError(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setLcaLoading(false);
+    }
+  }
+
+  function handleResetLCA() {
+    setLcaNodeIdA("");
+    setLcaNodeIdB("");
+    setLcaError("");
+    setLcaResult(null);
+  }
+
   const visitedSet = new Set(result?.visited ?? []);
   const matchedSet = new Set(result?.matched ?? []);
+  const selectedASet = new Set(lcaResult?.nodeA?.id ? [String(lcaResult.nodeA.id)] : []);
+  const selectedBSet = new Set(lcaResult?.nodeB?.id ? [String(lcaResult.nodeB.id)] : []);
+  const selectedLCASet = new Set(lcaResult?.lca?.id ? [String(lcaResult.lca.id)] : []);
 
   return (
     <>
@@ -314,6 +375,9 @@ export default function DOM() {
                   node={result.tree}
                   visited={visitedSet}
                   matched={matchedSet}
+                  selectedA={selectedASet}
+                  selectedB={selectedBSet}
+                  selectedLCA={selectedLCASet}
                   animate={animateNodes}
                 />
               </div>
@@ -332,6 +396,70 @@ export default function DOM() {
             </>
           )}
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Pencarian LCA</h2>
+
+        {!result?.tree && (
+          <p className="muted-text">Jalankan traversal atau muat DOM terlebih dahulu.</p>
+        )}
+
+        {result?.tree && (
+          <>
+            <div className="lca-grid">
+              <div className="form-group">
+                <label>Node ID A</label>
+                <input
+                  type="text"
+                  value={lcaNodeIdA}
+                  onChange={(event) => setLcaNodeIdA(event.target.value)}
+                  placeholder="contoh: 4"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Node ID B</label>
+                <input
+                  type="text"
+                  value={lcaNodeIdB}
+                  onChange={(event) => setLcaNodeIdB(event.target.value)}
+                  placeholder="contoh: 7"
+                />
+              </div>
+            </div>
+
+            <div className="lca-actions">
+              <button className="primary" onClick={handleFindLCA} disabled={lcaLoading}>
+                {lcaLoading ? "Mencari..." : "Cari LCA"}
+              </button>
+              <button className="secondary-button" onClick={handleResetLCA} disabled={lcaLoading}>
+                Reset LCA
+              </button>
+            </div>
+
+            {lcaError && <div className="error">{lcaError}</div>}
+
+            {lcaResult && (
+              <div className="lca-result">
+                <div className="lca-result-item">
+                  <span className="lca-label">Node A</span>
+                  <span>{lcaResult.nodeA.value} [id: {lcaResult.nodeA.id}]</span>
+                </div>
+                <div className="lca-result-item">
+                  <span className="lca-label">Node B</span>
+                  <span>{lcaResult.nodeB.value} [id: {lcaResult.nodeB.id}]</span>
+                </div>
+                <div className="lca-result-item lca-highlight">
+                  <span className="lca-label">LCA</span>
+                  <span>
+                    {lcaResult.lca.value} [id: {lcaResult.lca.id}] depth: {lcaResult.lca.depth}
+                  </span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </>
   );

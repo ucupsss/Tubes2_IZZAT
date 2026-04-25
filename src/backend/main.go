@@ -24,6 +24,14 @@ type traversalRequest struct {
 	Limit     int    `json:"limit"`
 }
 
+type lcaRequest struct {
+	URL     string `json:"url"`
+	HTML    string `json:"html"`
+	Source  string `json:"source"`
+	NodeIDA string `json:"nodeIdA"`
+	NodeIDB string `json:"nodeIdB"`
+}
+
 type treeResponse struct {
 	ID         string            `json:"id"`
 	Value      string            `json:"value"`
@@ -42,6 +50,12 @@ type logEntryResponse struct {
 	Matched bool   `json:"matched"`
 }
 
+type lcaNodeResponse struct {
+	ID    string `json:"id"`
+	Value string `json:"value"`
+	Depth int    `json:"depth"`
+}
+
 type traversalResponse struct {
 	Tree         *treeResponse      `json:"tree"`
 	Visited      []string           `json:"visited"`
@@ -57,6 +71,12 @@ type traversalResponse struct {
 	Source       string             `json:"source"`
 }
 
+type lcaResponse struct {
+	NodeA lcaNodeResponse `json:"nodeA"`
+	NodeB lcaNodeResponse `json:"nodeB"`
+	LCA   lcaNodeResponse `json:"lca"`
+}
+
 type errorResponse struct {
 	Error string `json:"error"`
 }
@@ -65,6 +85,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", handleHealth)
 	mux.HandleFunc("/api/traversal", handleTraversal)
+	mux.HandleFunc("/api/lca", handleLCA)
 
 	addr := ":" + defaultPort
 	log.Printf("backend listening on http://localhost%s", addr)
@@ -102,6 +123,33 @@ func handleTraversal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := runTraversal(request)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func handleLCA(w http.ResponseWriter, r *http.Request) {
+	withCORS(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method tidak didukung")
+		return
+	}
+
+	var request lcaRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "payload JSON tidak valid")
+		return
+	}
+
+	response, err := runLCA(request)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -185,6 +233,51 @@ func runTraversal(request traversalRequest) (*traversalResponse, error) {
 	}, nil
 }
 
+func runLCA(request lcaRequest) (*lcaResponse, error) {
+	request.URL = strings.TrimSpace(request.URL)
+	request.HTML = strings.TrimSpace(request.HTML)
+	request.NodeIDA = strings.TrimSpace(request.NodeIDA)
+	request.NodeIDB = strings.TrimSpace(request.NodeIDB)
+
+	if request.NodeIDA == "" || request.NodeIDB == "" {
+		return nil, fmt.Errorf("Node ID A dan Node ID B wajib diisi")
+	}
+
+	htmlInput, _, err := resolveHTMLInput(traversalRequest{
+		URL:  request.URL,
+		HTML: request.HTML,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	root, err := parser.ParseHTML(htmlInput)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeA := findNodeByID(root, request.NodeIDA)
+	if nodeA == nil {
+		return nil, fmt.Errorf("Node ID A tidak ditemukan pada DOM aktif")
+	}
+
+	nodeB := findNodeByID(root, request.NodeIDB)
+	if nodeB == nil {
+		return nil, fmt.Errorf("Node ID B tidak ditemukan pada DOM aktif")
+	}
+
+	lcaNode := graph.GetLCA(nodeA, nodeB)
+	if lcaNode == nil {
+		return nil, fmt.Errorf("LCA tidak dapat ditentukan untuk dua node tersebut")
+	}
+
+	return &lcaResponse{
+		NodeA: serializeLCANode(nodeA),
+		NodeB: serializeLCANode(nodeB),
+		LCA:   serializeLCANode(lcaNode),
+	}, nil
+}
+
 func resolveHTMLInput(request traversalRequest) (string, string, error) {
 	if request.URL != "" {
 		htmlInput, err := scraper.FetchHTML(request.URL)
@@ -246,6 +339,14 @@ func serializeTraversalLog(nodes []*graph.Node, matchedSet map[uint64]bool) []lo
 	return logs
 }
 
+func serializeLCANode(node *graph.Node) lcaNodeResponse {
+	return lcaNodeResponse{
+		ID:    formatNodeID(node),
+		Value: nodeLabel(node),
+		Depth: node.Meta.Depth,
+	}
+}
+
 func nodeIDs(nodes []*graph.Node) []string {
 	ids := make([]string, 0, len(nodes))
 	for _, node := range nodes {
@@ -254,6 +355,33 @@ func nodeIDs(nodes []*graph.Node) []string {
 		}
 	}
 	return ids
+}
+
+func findNodeByID(root *graph.Node, targetID string) *graph.Node {
+	if root == nil || targetID == "" {
+		return nil
+	}
+
+	stack := []*graph.Node{root}
+	for len(stack) > 0 {
+		last := len(stack) - 1
+		current := stack[last]
+		stack = stack[:last]
+
+		if current == nil {
+			continue
+		}
+
+		if formatNodeID(current) == targetID {
+			return current
+		}
+
+		for i := len(current.Children) - 1; i >= 0; i-- {
+			stack = append(stack, current.Children[i])
+		}
+	}
+
+	return nil
 }
 
 func nodeLabel(node *graph.Node) string {
