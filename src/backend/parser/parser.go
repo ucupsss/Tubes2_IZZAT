@@ -161,5 +161,6 @@ func convertAttributes(attributes []html.Attribute) map[string]string {
 }
 
 func prepareTree(root *graph.Node) {
+	graph.AssignStableIDs(root)
 	graph.ComputeLCA(root, graph.CountNodes(root))
 }

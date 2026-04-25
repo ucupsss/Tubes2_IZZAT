@@ -45,4 +45,3 @@ Untuk menghentikan container:
 docker compose down
 ```
 
-Setup ini sudah cukup untuk packaging lokal dan kebutuhan bonus Docker pada laporan, serta bisa dijadikan dasar untuk deployment ke VM.

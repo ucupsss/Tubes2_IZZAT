@@ -1,9 +1,5 @@
 package graph
 
-import "sync/atomic"
-
-var nextNodeID uint64
-
 type NodeMeta struct {
 	Depth int
 	Up    []*Node
@@ -21,11 +17,35 @@ type Node struct {
 
 func NewNode(tagName string, attributes map[string]string) *Node {
 	return &Node{
-		ID:         atomic.AddUint64(&nextNodeID, 1),
 		TagName:    tagName,
 		Attributes: cloneAttributes(attributes),
 		Texts:      make([]string, 0),
 		Children:   make([]*Node, 0),
+	}
+}
+
+func AssignStableIDs(root *Node) {
+	if root == nil {
+		return
+	}
+
+	var nextID uint64 = 1
+	stack := []*Node{root}
+
+	for len(stack) > 0 {
+		last := len(stack) - 1
+		current := stack[last]
+		stack = stack[:last]
+		if current == nil {
+			continue
+		}
+
+		current.ID = nextID
+		nextID++
+
+		for i := len(current.Children) - 1; i >= 0; i-- {
+			stack = append(stack, current.Children[i])
+		}
 	}
 }
 
